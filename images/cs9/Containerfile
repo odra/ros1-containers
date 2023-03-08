@@ -1,0 +1,96 @@
+FROM quay.io/centos/centos:stream9
+
+RUN dnf install -y epel-release epel-next-release 'dnf-command(config-manager)' && \
+dnf config-manager --set-enabled crb
+
+RUN dnf install -y \
+    wget \
+    git \
+    python3 \
+    python3-devel \
+    clang \
+    protobuf-compiler \
+    bison doxygen \
+    sip \
+    libacl \
+    tinyxml2 \
+    eigen3 \
+    libXaw \
+    libXrandr \
+    qt5-qtbase \
+    mesa-libGLU \
+    freetype \
+    # libcurl \
+    python3-qt5 \
+    boost \
+    console-bridge \
+    apr-util \
+    tinyxml \
+    lz4 orocos-kdl \
+    gpgme \
+    opencv \
+    libyaml \
+    yaml-cpp \
+    poly2tri
+
+RUN pip3 install \
+    pytest \
+    colcon-common-extensions \
+    lark \
+    rosdep \
+    rosinstall_generator \
+    vcstool \
+    defusedxml \
+    netifaces
+
+RUN mkdir -p /opt/ros/src
+
+WORKDIR /opt/ros/src
+
+RUN dnf install -y \
+git \
+cmake \
+clang protobuf-compiler \
+bison \
+rpm-build \
+gtest-devel \
+mesa-libGL-devel vulkan-devel glslang-devel SDL2-devel libXt-devel libXaw-devel doxygen pugixml-devel \
+freeimage-devel zziplib-devel freetype-devel libXrandr-devel
+
+RUN git clone https://github.com/OGRECave/ogre.git -b v1.11.0
+
+RUN ( \
+    mkdir ogre/_build; \
+    cd ogre/_build; \
+    cmake .. -DOGRE_BUILD_DEPENDENCIES=OFF -DCPACK_BINARY_RPM=ON; make -j`nproc`; \
+    make package; \
+    dnf install -y ./OGRE-1.11.0-Linux.rpm \
+)
+
+RUN dnf install -y \
+    asio-devel libacl-devel tinyxml2-devel python3-devel eigen3-devel libXaw-devel libXrandr-devel \
+    qt5-qtbase-devel mesa-libGLU-devel freetype-devel libcurl-devel python3-qt5-devel python3-sip-devel \
+    console-bridge-devel poco-devel apr-util tinyxml-devel lz4-devel orocos-kdl-devel \
+    urdfdom-headers-devel gpgme-devel opencv-devel libyaml-devel yaml-cpp-devel boost-devel libuuid-devel
+
+RUN dnf install -y \
+urdfdom urdfdom-devel urdfdom-headers-devel
+
+RUN dnf install -y https://download-ib01.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/l/log4cxx-0.10.0-31.el8.x86_64.rpm
+RUN dnf install -y https://download-ib01.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/l/log4cxx-devel-0.10.0-31.el8.x86_64.rpm
+RUN dnf install -y https://download-ib01.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/l/libaesgm-20090429-24.el8.x86_64.rpm
+RUN dnf install -y https://download-ib01.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/i/irrXML-1.8.5-1.el8.x86_64.rpm
+RUN dnf install -y https://download-ib01.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/i/irrXML-1.8.5-1.el8.x86_64.rpm
+RUN dnf install -y https://download-ib01.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/a/assimp-5.0.1-3.el8.x86_64.rpm
+RUN dnf install -y https://download-ib01.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/a/assimp-devel-5.0.1-3.el8.x86_64.rpm
+
+WORKDIR /opt/ros
+
+RUN rosinstall_generator desktop --rosdistro noetic --deps --tar > noetic-desktop.rosinstall
+RUN vcs import --input noetic-desktop.rosinstall ./src
+RUN dnf install -y https://download-ib01.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/l/libaesgm-20090429-24.el8.x86_64.rpm
+
+RUN sed -e '23s/, py_ssize_t_clean\=True//g' -i /usr/lib64/python3.9/site-packages/PyQt5/bindings/QtCore/QtCoremod.sip
+RUN sed -e '14s/Boost REQUIRED python/Boost REQUIRED python39/g' -i src/vision_opencv/cv_bridge/CMakeLists.txt
+
+RUN ./src/catkin/bin/catkin_make_isolated --install -DCMAKE_BUILD_TYPE=Release
